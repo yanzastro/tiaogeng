@@ -35,7 +35,8 @@
 .Trashes
 ehthumbs.db
 Thumbs.db
-
+.gitignore*
 *.fits
 results/*
 data/*
+.ipynb_checkpoints
