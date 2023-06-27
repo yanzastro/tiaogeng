@@ -36,5 +36,6 @@
 ehthumbs.db
 Thumbs.db
 
-./results/*
-./data/*
+*.fits
+results/*
+data/*
