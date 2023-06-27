@@ -321,11 +321,17 @@ class type_C_sys(sys_in_tile):
     '''
     Type C systematics: varying randomly and independently between tiles while being uniform within each tile, mimicking per-exposure effects such as limiting depth variations that arise from the use of a step-and-stare observing strategy.
     configuration dictionary is not necessary.
+    Input config dictionary example:
+    config_sys_c = {'upper': 1  # the upper bound of random systematics;
+    'lower': 0  # the lower bound of random systematics}
     '''
     __doc__ = sys_in_tile.__doc__ + __doc__
     def __init__(self, tiles, config_sys_c=None):
         super(type_C_sys, self).__init__(tiles, config_sys_c)
-        self.system_intile = np.random.random(size = self.tiles.n_tiles)
+        if config_sys_c is None:
+            self.system_intile = np.random.random(size = self.tiles.n_tiles)
+        else:
+            self.system_intile = np.random.random(size = self.tiles.n_tiles) * (self.config['upper'] - self.config['lower']) + self.config['lower']
     def eval_sys(self, source_lons, source_lats, source_tile_ids):
         source_sys = np.zeros(source_tile_ids.size)
         for t in range(self.tiles.n_tiles):
