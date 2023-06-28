@@ -8,8 +8,6 @@ import matplotlib.pyplot as plt
 from tqdm import tqdm
 from matplotlib.patches import RegularPolygon, Ellipse
 from matplotlib import cm, colorbar
-
-mpl.rcParams['figure.dpi'] = 200
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 

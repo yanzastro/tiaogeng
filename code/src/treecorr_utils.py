@@ -23,3 +23,16 @@ def treecorr_NNcor(catd, catr, min_sep=3, max_sep=300, nbins=20, bin_slop=0.0, s
     del gg, rr, dr, rd
     gc.collect()
     return theta, w, cov
+
+def mask_arrays(array, mask):
+    '''
+    This function removes terms in an array specified by 'mask'.
+    Input:
+    array: an ndarray to be masked. It has to have same size on each axis.
+    mask: an array with bool terms that has the same length as any axis in 'array'. True means to remove.
+    '''
+    dim = array.ndim
+    array_masked = array.copy()
+    for i in range(dim):
+        array_masked = np.delete(array_masked, mask, axis=i)
+    return array_masked
