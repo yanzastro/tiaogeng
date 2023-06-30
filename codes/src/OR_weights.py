@@ -203,7 +203,7 @@ class som2stats:
         wmap = np.zeros(hp.nside2npix(Ns))
         #Nmap = self.Nmap
         source_hp_ind_unique = self.source_hp_ind_unique
-        A_pix = hp.nside2pixarea(Ns)# the area of a Healpix pixel
+        A_pix = hp.nside2pixarea(Ns) * frac # the area of a Healpix pixel
         number_contrast = np.zeros(som_dim**2)
         for cluster_ind in tqdm(range(self.n_cluster)):
             source_clusteri_ind = np.where(self.source_cluster_ind==cluster_ind)[0]
@@ -211,12 +211,11 @@ class som2stats:
             N_i = source_clusteri_ind.size  # and the number of sources in that cluster        
             source_hp_ind_i = self.source_hp_ind[source_clusteri_ind]  # and the Healpix pixel indices
             source_hp_ind_clusteri_unique, N_p_i = np.unique(source_hp_ind_i, return_counts=True)
-            A_p_i = N_p_i / Nmap[source_hp_ind_clusteri_unique]
-            A_i = np.sum(N_p_i / Nmap[source_hp_ind_clusteri_unique]*frac[source_hp_ind_clusteri_unique]*A_pix)
-            f_p_i = N_p_i / Nmap[source_hp_ind_clusteri_unique]
+            f_p_i = N_p_i / Nmap[source_hp_ind_clusteri_unique]            
+            A_i = np.sum(f_p_i*A_pix[source_hp_ind_clusteri_unique])            
             n_i = N_i / A_i
             number_contrast[som_cluster_ind1d==cluster_ind] = n_i
-            wmap[source_hp_ind_clusteri_unique] += n_i * frac[source_hp_ind_clusteri_unique] * f_p_i 
+            wmap[source_hp_ind_clusteri_unique] += n_i * A_pix[source_hp_ind_clusteri_unique] * f_p_i
         number_contrast = number_contrast.reshape(som_dim, som_dim)
         frac_occupied = (Nmap>0).sum() / (frac>0).sum()
         print('Fraction of occupied pixels: '+str(frac_occupied))
