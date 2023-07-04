@@ -37,6 +37,6 @@ ehthumbs.db
 Thumbs.db
 .gitignore*
 *.fits
-results/*
-data/*
+results/*fits
+data/*fits
 .ipynb_checkpoints

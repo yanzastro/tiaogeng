@@ -38,7 +38,7 @@ An example notebook is given in `./code/notebooks` which reads a mock catalog ge
 
 Essential: `numpy`, `scipy`, `matplotlib`, `healpy`, [`somoclu`](https://somoclu.readthedocs.io/en/stable/) (to train a SOM), `sklearn` (to do hierarchical clustering)
 
-Optional (for the example notebook): [`glass`](https://glass.readthedocs.io/en/stable/) (note that we use [this commit](https://github.com/glass-dev/glass/commit/95fb2bbe27c1597b20b0c9c4b86b7f2dd1237cc9) of glass-dev/glass here. other versions might not work well), [`treecorr`](https://rmjarvis.github.io/TreeCorr/_build/html/index.html), [`pyccl`](https://ccl.readthedocs.io/en/latest/index.html)
+Optional (for the example notebook): [`glass`](https://glass.readthedocs.io/en/stable/) (note that we use the version "2023.06") of glass-dev/glass here. other versions might not work well), [`treecorr`](https://rmjarvis.github.io/TreeCorr/_build/html/index.html), [`pyccl`](https://ccl.readthedocs.io/en/latest/index.html), `tqdm` (for showing progress bar)
 
 ## What is a "tiaogeng🥄"?
 

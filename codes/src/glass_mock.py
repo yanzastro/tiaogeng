@@ -6,22 +6,28 @@ import matplotlib.pyplot as plt
 import healpy as hp
 # these are the GLASS imports: cosmology and everything in the glass namespace
 from cosmology import Cosmology
-import glass.all
-import glass
 from astropy.io import fits
 import healpy as hp
 # also needs camb itself to get the parameter object
 import camb
 import sys
+import glass.shells
+import glass.fields
+import glass.points
+import glass.shapes
+import glass.lensing
+import glass.galaxies
+import glass.observations
+import glass.ext.camb
+from tqdm import tqdm
 
 
-def glass_mock(Oc, Ob, h, z, n_arcmin2, dndz, vis, nside, outfile, random=False, glass_output=None):
+def glass_mock(Oc, Ob, h, bias, z, n_arcmin2, dndz, vis, nside, outfile, gls=None, random=False):
     '''
     This function using GLASS to generate a mock galaxy catalog under a given cosmology and redshift distribution.
-    Note that the version of glass for this function is the commit '95fb2bbe27c1597b20b0c9c4b86b7f2dd1237cc9' of glass-dev/glass
-    The associated 'gaussiancl' should be release 2022.7.28.
+    Note that the version of glass for this function is the version "2023.06".
     Input:
-    Oc, Ob, h: cosmological parameters;
+    Oc, Ob, h, bias: cosmological parameters;
     z, dndz: redshift distribution of the galaxy catalog (needs to be normalized);
     n_arcmin2: mean galaxy surface number density in ngal/arcmin^2;
     vis: a binary sky mask in Healpix format that defines the footprint of the survey;
@@ -29,68 +35,61 @@ def glass_mock(Oc, Ob, h, z, n_arcmin2, dndz, vis, nside, outfile, random=False,
     random: bool, whether to generate a galaxy catalog or a uniform random catalog.
     
     '''
-    pars = camb.set_params(H0=100*h, omch2=Oc*h**2, ombh2=Ob*h**2, WantTransfer = True)
-    cosmo = Cosmology.from_camb(pars)
 
-    lmax = 3 * nside
+    dz = (z[-1]-z[0])/z.size
+    dndz /= (dndz.sum()*dz)
+    dndz *= n_arcmin2    
+    
+    # shells of 200 Mpc in comoving distance spacing
+    zb = glass.shells.redshift_grid(z[0], z[-1], dz=0.1)
+
+    # tophat window functions for shells
+    ws = glass.shells.tophat_windows(zb)
+    
+    # compute the angular matter power spectra of the shells with CAMB
+    if gls is None:
+        lmax = 3 * nside
+        pars = camb.set_params(H0=100*h, omch2=Oc*h**2, ombh2=Ob*h**2, WantTransfer = True)
+        cls = glass.ext.camb.matter_cls(pars, lmax, ws)
+
+        # compute Gaussian cls for lognormal fields for 3 correlated shells
+        # putting nside here means that the HEALPix pixel window function is applied
+        gls = glass.fields.lognormal_gls(cls, nside=nside, lmax=lmax, ncorr=3)
+
+    # generator for lognormal matter fields
+    matter = glass.fields.generate_lognormal(gls, nside)    
     
     lon = np.array([])
     lat = np.array([])
     Z = np.array([])
-    if random is False:
-        if glass_output is not None:
-            generators = [
-            glass.core.load(glass_output),
-            glass.observations.vis_constant(vis, nside=nside),
-            glass.galaxies.gal_b_const(1),
-            glass.matter.lognormal_matter(nside),
-            glass.galaxies.gal_density_dndz(z, n_arcmin2*dndz),
-            glass.galaxies.gal_positions_mat(),
-            glass.galaxies.gal_redshifts_nz(),        
-            ]
-        else:
-            generators = [
-            glass.cosmology.zspace(z[0], z[-1], dz=0.1),
-            glass.matter.mat_wht_density(cosmo),
-            glass.camb.camb_matter_cl(pars, lmax),
-            glass.observations.vis_constant(vis, nside=nside),
-            glass.galaxies.gal_b_const(1),
-            glass.matter.lognormal_matter(nside),
-            glass.galaxies.gal_density_dndz(z, n_arcmin2*dndz),
-            glass.galaxies.gal_positions_mat(),
-            glass.galaxies.gal_redshifts_nz(),        
-            ]
-        # simulate and add galaxies in each matter shell to cube
-        for shell in glass.core.generate(generators):
-            lon = np.hstack([lon, shell[glass.galaxies.GAL_LON]])
-            lat = np.hstack([lat, shell[glass.galaxies.GAL_LAT]])
-            Z = np.hstack([Z, shell[glass.galaxies.GAL_Z]])
-        
-    else:
-        generators = [        
-        glass.cosmology.zspace(z[0], z[-1], dz=0.1),
-        glass.galaxies.gal_density_dndz(z, n_arcmin2*dndz),
-        glass.galaxies.gal_positions_unif(),
-        glass.galaxies.gal_redshifts_nz(),        
-        ]        
+    # simulate the matter fields in the main loop, and build up the catalogue
+    for i, delta_i in tqdm(enumerate(matter), total=zb.size-1):
+
+        # the true galaxy distribution in this shell
+        z_i, dndz_i = glass.shells.restrict(z, dndz, ws[i])
+
+        # integrate dndz to get the total galaxy density in this shell
+        ngal = np.trapz(dndz_i, z_i)
+        if random==True:
+            delta_i = np.zeros_like(delta_i)
     
-        # simulate and add galaxies in each matter shell to cube
-        
-        for shell in glass.core.generate(generators):
-            lon = np.hstack([lon, shell[glass.galaxies.GAL_LON]])
-            lat = np.hstack([lat, shell[glass.galaxies.GAL_LAT]])
-            Z = np.hstack([Z, shell[glass.galaxies.GAL_Z]])
+        # generate galaxy positions from the matter density contrast
+        for gal_lon, gal_lat, gal_count in glass.points.positions_from_delta(ngal, delta_i, bias, vis):
+
+            # generate random redshifts from the provided nz
+            gal_z = glass.galaxies.redshifts_from_nz(gal_count, z_i, dndz_i)
+
+            # make a mini-catalogue for the new rows
             
-        hp_ind = hp.ang2pix(nside, lon, lat, lonlat=True) 
-        lon = lon[vis[hp_ind]>0]
-        lat = lat[vis[hp_ind]>0]
-        Z = Z[vis[hp_ind]>0]
-        
-    print(str(lon.size)+' galaxies are generated!')
+            lon = np.hstack([lon, gal_lon])
+            lat = np.hstack([lat, gal_lat])
+            Z = np.hstack([Z, gal_z])
+            
+    print(str(len(lon))+' galaxies are generated!')
   
-    col_ra = fits.Column(name='RA', format='D', array=lon)
-    col_dec = fits.Column(name='Dec', format='D', array=lat)
-    col_redshift = fits.Column(name='Redshift', format='D', array=Z)
+    col_ra = fits.Column(name='RA', format='D', array=np.array(lon))
+    col_dec = fits.Column(name='Dec', format='D', array=np.array(lat))
+    col_redshift = fits.Column(name='Redshift', format='D', array=np.array(Z))
     coldefs = fits.ColDefs([col_ra, col_dec, col_redshift])
     hdu = fits.BinTableHDU.from_columns(coldefs)
     hdu.writeto(outfile, overwrite=True)
