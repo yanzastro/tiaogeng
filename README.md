@@ -28,27 +28,21 @@ To cluster systematics, we use the self orgainzing map (SOM) algorithm, which ma
 
 The effective pixel area (of the $p$-th pixel) occupied by galaxies from the $i$-th cluster is:
 
-\begin{equation}
-    A_p^{i} \equiv \frac{N_p^{i}}{N_p}\times A_{p},
-\end{equation}
+$$A_p^{i} \equiv \frac{N_p^{i}}{N_p}\times A_{p},$$
+
 where $N_p$ is the total number of galaxies in the $p$-th pixel and $A_{p}$ is the observational footprint area in this pixel (we takes into account fractional coverage of some pixels).
 
 Now we calculate the total effective area for each cluster by summing up all the occupied pixels:
 
-\begin{equation}
-    A^{i} \equiv \sum_p A_p^{i},
-\end{equation}
+$$A^{i} \equiv \sum_p A_p^{i},$$
+
 and the effective surface number density of the $i$th cluster:
-\begin{equation}
-    n_{i} \equiv \frac{N^{i}}{A^{i}}.
-\end{equation}
+$$n_{i} \equiv \frac{N^{i}}{A^{i}}.$$
 
 The organized-random can be thought of as randomly re-sampling galaxies in the regions occupied by each cluster number density given above, then combining all the clusters. Alternatively, one can also construct the ''organized random weight'' as:
 
-\begin{equation}
-    w_p = \sum_{i} n_iA^i_p
-\end{equation}
-the organized random can be generated accordingly. Or alternatively, one can set this as the 'weight' parameter in the random catalog when calling [`treecorr`](https://rmjarvis.github.io/TreeCorr/_build/html/index.html) to measure galaxy correlation function.
+$$w_p = \sum_{i} n_iA^i_p.$$
+The organized random can be generated accordingly. Or alternatively, one can set this as the 'weight' parameter in the random catalog when calling [`treecorr`](https://rmjarvis.github.io/TreeCorr/_build/html/index.html) to measure galaxy correlation function.
 
 
 ## Structure of this package
