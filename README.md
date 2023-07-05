@@ -20,6 +20,37 @@ The whole idea can be summarized as following:
 
 In practice, the organized randoms are reconstructed as a pixelized weight map that quantifies the likelihood that a galaxie will be kept due to systematics selection in each part of the sky. In this package, we use Healpix scheme to pixelize the organised randoms. We also pixelize the galaxy catalog to speed up 2PCF measurement.
 
+## Mathematical notes
+
+For each galaxy in a catalog, suppose that we have measured their systematics (for example, PSF\_FWHM, PSF\_ellipticity, magnitude limit, extinction, etc) which vary across the sky. Our goal is to find the total number of galaxies observed in each patch of the sky that might have been affected by these systematics. The idea is to first group these galaxies on high-dimensional systematics space, and assume that galaxies in each group are depleted uniformly. For each group, we find the sky regions that are occupied by galaxies from this group and the associated effective galaxy number density. Then we re-distribute galaxies uniformly in these regions. Finally, we combine those random galaxies from all the groups. 
+
+To cluster systematics, we use the self orgainzing map (SOM) algorithm, which maps systematics vectors onto a 2D map while keeping the high-dimentional topology properties. Each cell on the 2D map corresponds contain a subgroup of galaxies. Then we further group the SOM cells via hierarchical cluster (HC)
+
+The effective pixel area (of the $p$-th pixel) occupied by galaxies from the $i$-th cluster is:
+
+\begin{equation}
+    A_p^{i} \equiv \frac{N_p^{i}}{N_p}\times A_{p},
+\end{equation}
+where $N_p$ is the total number of galaxies in the $p$-th pixel and $A_{p}$ is the observational footprint area in this pixel (we takes into account fractional coverage of some pixels).
+
+Now we calculate the total effective area for each cluster by summing up all the occupied pixels:
+
+\begin{equation}
+    A^{i} \equiv \sum_p A_p^{i},
+\end{equation}
+and the effective surface number density of the $i$th cluster:
+\begin{equation}
+    n_{i} \equiv \frac{N^{i}}{A^{i}}.
+\end{equation}
+
+The organized-random can be thought of as randomly re-sampling galaxies in the regions occupied by each cluster number density given above, then combining all the clusters. Alternatively, one can also construct the ''organized random weight'' as:
+
+\begin{equation}
+    w_p = \sum_{i} n_iA^i_p
+\end{equation}
+the organized random can be generated accordingly. Or alternatively, one can set this as the 'weight' parameter in the random catalog when calling [`treecorr`](https://rmjarvis.github.io/TreeCorr/_build/html/index.html) to measure galaxy correlation function.
+
+
 ## Structure of this package
 
 All the source codes are stored in `./code/src`, including:
