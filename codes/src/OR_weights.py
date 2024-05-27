@@ -155,24 +155,26 @@ class som2stats:
         return xi * self.som_dim + yi   
     
     
-    def calculate_or_weights(self, Ns, pixfrac=None):
+    def calculate_or_weights(self, Ns, pixfrac=None, selection=None):
 
         '''
         This function calculates the organized random weight on the pixelized sky.
         Input:
         Ns: an integer specifying the Nside of the weight map.
-        som_dim: the dimension of the SOM;    
-        source_hp_ind,: the healpix indices of each source in the catalog;
-        source_cluster_ind: the cluster indices of each source in the testing data.
-        som_cluster_ind1d: the cluster indices of each cell in the SOM
+        pixfrac: a Healpix map specifying the pixel coverage in the footprint. It will be up/downgraded to Ns if it's Nside does not match Ns.
+        selection: an 1-D array containing source indices that are used to select a subsample of sources to generate the OR weight.
         Output:
         weight_map: a healpix map of the organized random weight
-        number_contrast: a 2-D matrix of number_contrast in each cell of the SOM
+        number_density: a 2-D matrix of number_density in each cell of the SOM
         '''
-        som_dim = self.som_dim
+        som_dim = self.som_dim        
+        Nmap = self.get_test_hp_Nmap(Ns, selection)
         
-        Nmap = self.get_test_hp_Nmap(Ns)
-        source_hp_ind = self.source_hp_ind
+        if selection is None:
+            select_ind = np.arange(self.radec.T[0].size)
+        else:
+            select_ind = selection
+        source_hp_ind = self.source_hp_ind#[select_ind]
 
         try:
             som_cluster_ind1d = self.som_cluster_ind
@@ -203,24 +205,36 @@ class som2stats:
         wmap = np.zeros(hp.nside2npix(Ns))
         #Nmap = self.Nmap
         source_hp_ind_unique = self.source_hp_ind_unique
+        
+        source_cluster_ind = self.source_cluster_ind[select_ind]
+        
         A_pix = hp.nside2pixarea(Ns) * frac # the area of a Healpix pixel
-        number_contrast = np.zeros(som_dim**2)
+        number_density = np.zeros(som_dim**2)
         for cluster_ind in tqdm(range(self.n_cluster)):
-            source_clusteri_ind = np.where(self.source_cluster_ind==cluster_ind)[0]
+            source_clusteri_ind = np.where(source_cluster_ind==cluster_ind)[0]
             # pick out the catalog indices of sources that are in the cluster_ind'th hierarchical cluster
             N_i = source_clusteri_ind.size  # and the number of sources in that cluster        
-            source_hp_ind_i = self.source_hp_ind[source_clusteri_ind]  # and the Healpix pixel indices
+            source_hp_ind_i = source_hp_ind[source_clusteri_ind]  # and the Healpix pixel indices
             source_hp_ind_clusteri_unique, N_p_i = np.unique(source_hp_ind_i, return_counts=True)
+                                    
             f_p_i = N_p_i / Nmap[source_hp_ind_clusteri_unique]
-            A_p_i = f_p_i * A_pix[source_hp_ind_clusteri_unique]
-            A_i = np.sum(A_p_i)            
+            A_i = np.sum(f_p_i*A_pix[source_hp_ind_clusteri_unique])            
+                
             n_i = N_i / A_i
-            number_contrast[som_cluster_ind1d==cluster_ind] = n_i
-            wmap[source_hp_ind_clusteri_unique] += n_i * A_p_i
-        number_contrast = number_contrast.reshape(som_dim, som_dim)
-        frac_occupied = (Nmap>0).sum() / (frac>0).sum()
+            number_density[som_cluster_ind1d==cluster_ind] = n_i
+            
+            wmap[source_hp_ind_clusteri_unique] += n_i * A_pix[source_hp_ind_clusteri_unique] * f_p_i
+            
+        number_density = number_density.reshape(som_dim, som_dim)
+        
+        area = np.sum(frac)*hp.nside2pixarea(hp.npix2nside(frac.size), degrees=True)
+        print(f'Footprint area is: {area} degree^2.')
+        
+        area_occ = np.sum(frac*(Nmap>0))*hp.nside2pixarea(hp.npix2nside(frac.size), degrees=True)
+        
+        frac_occupied = area_occ / area
         print('Fraction of occupied pixels: '+str(frac_occupied))
-        return wmap, number_contrast
+        return wmap, number_density
             
     
     def get_cluster_map(self, cluster_ind, pixfrac=None):
