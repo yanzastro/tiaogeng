@@ -4,33 +4,33 @@
 
 This is a python package to calculate the ''organized random'' for galaxy clustering measurement based on the idea from [Johnston, et al](https://arxiv.org/abs/2012.08467).
 
-To measure the two-point function of galaxy distribution, one needs to calculate so-called random-random and data-random pair counts (see https://ui.adsabs.harvard.edu/abs/1993ApJ...412...64L/abstract). However, if the galaxy sample has variable depth due to anisotropic selection effects by various systematics (Galactic extinction, seeing, etc), a uniform random will result in biased estimation of the 2PCF. Therefore, one needs to recover the ''organized random'' to eliminate the selection effect of a synthesis of systematics. In practice, selection functions of systematics could be complicated thus cannot be fit with simple formula. In addition, different systematics might be correlated, which makes the problem more complicated.
+To measure the two-point function of galaxy distribution, one needs to calculate so-called random-random and data-random pair counts (see https://ui.adsabs.harvard.edu/abs/1993ApJ...412...64L/abstract). However, if the galaxy sample has variable depth due to anisotropic selection effects by various systematics (Galactic extinction, seeing, etc), a uniform random will result in a biased estimation of the 2PCF. Therefore, one needs to recover the ''organized random'' to eliminate the selection effect of a synthesis of systematics. In practice, selection functions of systematics could be complicated thus cannot be fit with simple formula. In addition, different systematics might be correlated, which makes the problem more complicated.
 
 The method proposed by [Johnston, et al](https://arxiv.org/abs/2012.08467) applies a combination of self-organizing map (SOM) and hierarchical clustering (HC) to capture the clustering of galaxies on high-dimensional systematics space, and then resample them back to the survey footprint to recover the organized random. This method has been tested on mock galaxy catalogs and the KiDS-1000 bright sample.
 
 ## Basic idea
 
-The whole idea can be summarized as following:
+The whole idea can be summarized as follows:
 
 1. Train a SOM with systematics vectors of the galaxy sample;
-2. Group the SOM weight with HC. Each group represents a subsample of galaxies that shares similar systematis and therefore selections;
-3. Map galaxies from each hierarchical cluster back to the sky. Galaxies from one cluster occuples disjoint sky regions that shares approximately the same selection function;
-4. Resample galaxies randomly in each disjoint region according the galaxy number of corresponding hierarchical cluster;
+2. Group the SOM weight with HC. Each group represents a subsample of galaxies that shares similar systematic and therefore selections;
+3. Map galaxies from each hierarchical cluster back to the sky. Galaxies from one cluster occupies disjoint sky regions that share approximately the same selection function;
+4. Resample galaxies randomly in each disjoint region according to the galaxy number of the corresponding hierarchical cluster;
 5. Combine the resampled "galaxies" from all the clusters to get the organized random catalog.
 
-In practice, the organized randoms are reconstructed as a pixelized weight map that quantifies the likelihood that a galaxie will be kept due to systematics selection in each part of the sky. In this package, we use Healpix scheme to pixelize the organised randoms. We also pixelize the galaxy catalog to speed up 2PCF measurement.
+In practice, the organized randoms are reconstructed as a pixelized weight map that quantifies the likelihood that a galaxie will be kept due to systematics selection in each part of the sky. In this package, we use the Healpix scheme to pixelize the organised randoms. We also pixelize the galaxy catalog to speed up 2PCF measurement.
 
 ## Mathematical notes
 
 For each galaxy in a catalog, suppose that we have measured their systematics (for example, PSF\_FWHM, PSF\_ellipticity, magnitude limit, extinction, etc) which vary across the sky. Our goal is to find the total number of galaxies observed in each patch of the sky that might have been affected by these systematics. The idea is to first group these galaxies on high-dimensional systematics space, and assume that galaxies in each group are depleted uniformly. For each group, we find the sky regions that are occupied by galaxies from this group and the associated effective galaxy number density. Then we re-distribute galaxies uniformly in these regions. Finally, we combine those random galaxies from all the groups. 
 
-To cluster systematics, we use the self orgainzing map (SOM) algorithm, which maps systematics vectors onto a 2D map while keeping the high-dimentional topology properties. Each cell on the 2D map corresponds contain a subgroup of galaxies. Then we further group the SOM cells via hierarchical cluster (HC)
+To cluster systematics, we use the self-organising map (SOM) algorithm, which maps systematics vectors onto a 2D map while keeping the high-dimensional topology properties. Each cell on the 2D map corresponds to a subgroup of galaxies. Then we further group the SOM cells via hierarchical cluster (HC)
 
 The effective pixel area (of the $p$-th pixel) occupied by galaxies from the $i$-th cluster is:
 
 $$A_p^{i} \equiv \frac{N_p^{i}}{N_p}\times A_{p},$$
 
-where $N_p$ is the total number of galaxies in the $p$-th pixel and $A_{p}$ is the observational footprint area in this pixel (we takes into account fractional coverage of some pixels).
+where $N_p$ is the total number of galaxies in the $p$-th pixel and $A_{p}$ is the observational footprint area in this pixel (we take into account the fractional coverage of some pixels).
 
 Now we calculate the total effective area for each cluster by summing up all the occupied pixels:
 
@@ -50,7 +50,7 @@ The organized random can be generated accordingly. Or alternatively, one can set
 All the source codes are stored in `./code/src`, including:
 
 - OR_weights.py: the file that contains the class to recover organized random weight;
-- treecorr_utils.py: contains a function to call treecorr to calculate 2PCF;
+- treecorr_utils.py: contains a function to call `treecorr` to calculate 2PCF;
 - plot_som.py: contains a function to make fancy SOM plots;
 - glass_mock.py: generates mock catalogs with GLASS;
 - generate_mocksys.py: assigns simple mock systematics and depletion functions to a galaxy sample.
@@ -67,4 +67,4 @@ Optional (for the example notebook): [`glass`](https://glass.readthedocs.io/en/s
 
 ## What is a "tiaogeng🥄"?
 
-Tiaogeng (调羹) is the Chinese word for "spoon" which is more said in southern China. If we divide tiaogeng into two charactors, "tiao(调)" means "to reconcile" and "geng (羹)" means "Chinese-style thick soup". This is what this code is doing: handling the unevenly observed sky just like to stir your soup to make it taste more smooth and delicious.
+Tiaogeng (调羹) is the Chinese word for "spoon" which is more said in southern China. If we divide tiaogeng into two charactors, "tiao(调)" means "to reconcile" and "geng (羹)" means "Chinese-style thick soup". This is what this code is doing: handling the unevenly observed sky just like stirring your soup to make it taste more smooth and delicious.
