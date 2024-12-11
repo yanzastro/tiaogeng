@@ -1,4 +1,5 @@
-# tiaogeng: recovering organized randoms for galaxy clustering measurements with SOM+HC
+# tiaogeng: 
+A machine-learning-based method to correct complex selection effects for galaxy clustering measurement.
 
 ## Introduction
 
