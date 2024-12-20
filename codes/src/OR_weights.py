@@ -1,18 +1,17 @@
+import os
+os.environ['OMP_NUM_THREADS'] = '100'
+os.environ['OPENBLAS_NUM_THREADS'] = '100'
+os.environ['MKL_NUM_THREADS'] = '100'
+
 import fitsio
 from astropy.io import fits
 import numpy as np
 import matplotlib as mpl
 import healpy as hp
 import matplotlib.pyplot as plt
-from pathos.pools import ProcessPool
 from tqdm import tqdm
 import sklearn.cluster
 from scipy.spatial.distance import cdist
-import os
-
-os.environ['OMP_NUM_THREADS'] = '80'
-os.environ['OPENBLAS_NUM_THREADS'] = '80'
-os.environ['MKL_NUM_THREADS'] = '80'
 
 class som2stats:
     def __init__(self, som):
@@ -25,13 +24,14 @@ class som2stats:
         '''
         self.som = som
    
-    def train_som(self, training_data, radiusN=5):
+    def train_som(self, training_data, **train_args):
+
         self.training_data = training_data
-        self.som.train(training_data, radiusN=radiusN)
+        self.som.train(training_data, **train_args)
         self.training_bmus = self.som.bmus
         self.som_dim = self.som.codebook.shape[0]
     
-    def get_surface_state(self, data):
+    def get_bmus(self, data=None):
         """Return the Euclidean distance between codebook and data.
         :param data: Optional parameter to specify data, otherwise the
                      data used previously to train the SOM is used.
@@ -39,24 +39,51 @@ class som2stats:
         :returns: The the dot product of the codebook and the data.
         :rtype: 2D numpy.array
         """
-
+        if data is None:
+            return self.som.bmus
         d = data
         som=self.som
         codebookReshaped = som.codebook.reshape(
             som.codebook.shape[0] * som.codebook.shape[1], som.codebook.shape[2])
         parts = np.array_split(d, 200, axis=0)
         #am = np.empty((0, (som._n_columns * som._n_rows)), dtype="float64")
-        am = np.zeros((data.shape[0], som._n_columns * som._n_rows))
-
+        #am = np.zeros((data.shape[0], som._n_columns * som._n_rows))
+        am = np.zeros(data.shape[0])
         i = 0
-        for part in tqdm(parts):
-            am[i:i+part.shape[0]] = cdist((part), codebookReshaped, 'euclidean')
+        for part in parts:
+            ams = cdist((part), codebookReshaped, 'euclidean')
+            
+            am[i:i+part.shape[0]] = ams.argmin(axis=1)
             i = i+part.shape[0]
-        return am
+        Y, X = np.unravel_index(am.astype(np.int64), (som._n_rows, som._n_columns))
+        return np.vstack((X, Y)).T
+    
+    def get_testdata_info(self, testing_data=None, step=1000):
+        '''
+        This function gets the radec information needed for organized random from a pre-trained SOM. The main
+        part is to calculate 'bmus' from a set of testing data
+        It works by multiprocessing chunks of the data.
+        Input:
+        testing_data: np.ndarray of the data vector. If not given, then use training data;
+        step: int, the size of a chunk of the data.
+        Output (attributes added):
+        self.bmus: bmus correpsonding to the testing data
+        '''
+        if testing_data is None:
+            self.data = self.training_data
+            self.bmus = self.training_bmus
+            self.source_somcell_ind = self.som_ind_to_1d(self.bmus.T[0], self.bmus.T[1])
+            return
+        self.data = testing_data
+        data = self.data
+        #dmap = self.get_surface_state(data)
+        self.bmus = self.get_bmus(data, step)
+
+        self.source_somcell_ind = self.som_ind_to_1d(self.bmus.T[0], self.bmus.T[1])
     
     def get_OR_info(self, radec, testing_data=None, step=1000):
         '''
-        This function gets the information needed for organized random from a pre-trained SOM. The main
+        This function gets the radec information needed for organized random from a pre-trained SOM. The main
         part is to calculate 'bmus' from a set of testing data
         It works by multiprocessing chunks of the data.
         Input:
@@ -67,21 +94,10 @@ class som2stats:
         self.bmus: bmus correpsonding to the testing data
         '''
         self.radec = radec
-        if testing_data is None:
-            self.data = self.training_data
-            self.bmus = self.training_bmus
-            self.source_somcell_ind = self.som_ind_to_1d(self.bmus.T[0], self.bmus.T[1])
-            return
-        self.data = testing_data
-        data = self.data
-        som = self.som
-        dmap = self.get_surface_state(data)
-        self.bmus = som.get_bmus(dmap)
-
-        self.source_somcell_ind = self.som_ind_to_1d(self.bmus.T[0], self.bmus.T[1])
+        self.get_testdata_info(testing_data, step)
         return 
 
-    def get_test_hp_Nmap(self, Ns):     
+    def get_test_hp_Nmap(self, Ns, selection=None):     
         '''
         This function returns the healpix indices of sources in the testing data given Nside = Ns and the number count map.
         Attributes added:
@@ -89,7 +105,12 @@ class som2stats:
         source_hp_ind_unique: the unique healpix pixel indices.This array tells you which pixel contains at least one galaxy.
         Nmap: the number count map corresponding to the catalog.
         '''
-        self.source_hp_ind = hp.ang2pix(Ns, self.radec.T[0], self.radec.T[1], lonlat=True)
+        if selection is None:
+            select_ind = np.arange(self.radec.T[0].size)
+        else:
+            select_ind = selection
+        
+        self.source_hp_ind = hp.ang2pix(Ns, self.radec.T[0][select_ind], self.radec.T[1][select_ind], lonlat=True)
         self.source_hp_ind_unique, N_p = np.unique(self.source_hp_ind, return_counts=True)
         # this line gives the unique healpix pixel indices that contains at least one galaxy, as well as the number of galaxies in each pixel 
         Nmap = np.zeros(hp.nside2npix(Ns))
@@ -108,16 +129,17 @@ class som2stats:
         try:
             winner_x, winner_y = self.bmus.T
         except AttributeError:
-            print('bmus not calculated yet. now calculating...')
-            self.get_test_bmus()
+            print('bmus not calculated yet. now calculating using the training data...')
+            self.bmus = self.train_bmus
             winner_x, winner_y = self.bmus.T
             
-        for i in range(len(self.data)):
-            sys_maps[winner_x[i], winner_y[i]] += self.data[i]
-            n_maps[winner_x[i], winner_y[i]] += 1
+        for i in range(self.data.shape[1]):
+            print(i)
+            sys_maps[:,:,i],_,_ = np.histogram2d(winner_x, winner_y, bins=np.arange(self.som_dim+1), weights=self.data[:,i])
+        n_maps,_,_ = np.histogram2d(winner_x, winner_y, bins=np.arange(self.som_dim+1))
     
         sys_maps /= n_maps[:,:,None]
-        self.sys_maps = sys_maps
+        return sys_maps
     
     def hierarchical_clustering(self, n_cluster=100, algorithm=sklearn.cluster.AgglomerativeClustering):
         '''
@@ -130,14 +152,18 @@ class som2stats:
         '''
         algorithm_ = algorithm(n_clusters=n_cluster, linkage='average')
         self.som.cluster(algorithm_)
-        self.n_cluster = n_cluster
+        if n_cluster>self.som_dim**2:
+            print('Warning: number of cluster greater than number of SOM cells. Force cluster to be SOM cell.')
+            self.n_cluster = self.som_dim ** 2
+        else:
+            self.n_cluster = n_cluster
         self.som_cluster_ind = self.som.clusters.reshape(-1)
         
         try:
             winner_ind1d = self.source_somcell_ind
         except AttributeError:
-            print('bmus not calculated yet. now calculating...')
-            self.get_test_bmus()
+            print('bmus not calculated yet. now calculating using the training data...')
+            self.get_testdata_info()
             winner_ind1d = self.source_somcell_ind
             
         source_cluster_ind = np.zeros_like(winner_ind1d)
@@ -154,15 +180,40 @@ class som2stats:
         '''
         return xi * self.som_dim + yi   
     
+    @staticmethod
+    def get_neighbour_pix(ns, inds, k=1):
+        if k == 0: 
+            return inds
+        for i in range(k):
+            lon_, lat_ = hp.pix2ang(ns, inds)
+            inds_npixes = hp.get_all_neighbours(ns, lon_, lat_).reshape(-1)
+            inds = np.unique(np.hstack([inds, inds_npixes])).astype(np.int64)
+        return inds  
     
-    def calculate_or_weights(self, Ns, pixfrac=None, selection=None):
+    @staticmethod    
+    def nn_interp_hp(Ns, pix_in, val_in, pix_out):
+        vec_in = np.asarray(hp.pix2vec(Ns, pix_in))
+        vec_out = np.asarray(hp.pix2vec(Ns, pix_out))
+        val_out = np.zeros_like(pix_out) * 1.0
+        for i, pix in enumerate(pix_out):
+            if pix in pix_in:
+                val_out[i] = val_in[np.where(pix_in==pix)[0]]
+                continue
+            else:
+                inner = np.dot(vec_out.T[i], vec_in)
+                val_out[i] = val_in[np.argmax(inner)]
+        return val_out
+    
+    def calculate_or_weights(self, Ns, poisson_sample=False, pixfrac=None, selection=None):
 
         '''
         This function calculates the organized random weight on the pixelized sky.
         Input:
         Ns: an integer specifying the Nside of the weight map.
-        pixfrac: a Healpix map specifying the pixel coverage in the footprint. It will be up/downgraded to Ns if it's Nside does not match Ns.
-        selection: an 1-D array containing source indices that are used to select a subsample of sources to generate the OR weight.
+        som_dim: the dimension of the SOM;    
+        source_hp_ind,: the healpix indices of each source in the catalog;
+        source_cluster_ind: the cluster indices of each source in the testing data.
+        som_cluster_ind1d: the cluster indices of each cell in the SOM
         Output:
         weight_map: a healpix map of the organized random weight
         number_density: a 2-D matrix of number_density in each cell of the SOM
@@ -223,7 +274,12 @@ class som2stats:
             n_i = N_i / A_i
             number_density[som_cluster_ind1d==cluster_ind] = n_i
             
-            wmap[source_hp_ind_clusteri_unique] += n_i * A_pix[source_hp_ind_clusteri_unique] * f_p_i
+            if n_i == 0 or np.isnan(n_i):
+                n_i = 0
+            if poisson_sample:
+                wmap[source_hp_ind_clusteri_unique] += np.random.poisson(lam=n_i, size=source_hp_ind_clusteri_unique.size) * A_pix[source_hp_ind_clusteri_unique] * f_p_i
+            else:
+                wmap[source_hp_ind_clusteri_unique] += n_i * A_pix[source_hp_ind_clusteri_unique] * f_p_i  ### original one ###
             
         number_density = number_density.reshape(som_dim, som_dim)
         
@@ -273,7 +329,7 @@ class som2stats:
         #Nmap = self.Nmap
         source_hp_ind_unique = self.source_hp_ind_unique
         A_pix = hp.nside2pixarea(Ns)# the area of a Healpix pixel
-        number_contrast = np.zeros(som_dim**2)
+        number_density = np.zeros(som_dim**2)
         source_clusteri_ind = np.where(self.source_cluster_ind==cluster_ind)[0]
         # pick out the catalog indices of sources that are in the cluster_ind'th hierarchical cluster
         N_i = source_clusteri_ind.size  # and the number of sources in that cluster        
@@ -282,7 +338,7 @@ class som2stats:
         A_p_i = N_p_i / Nmap[source_hp_ind_clusteri_unique] * A_pix
         area_map[source_hp_ind_clusteri_unique] = A_p_i 
         
-        number_contrast = number_contrast.reshape(som_dim, som_dim)
+        number_density = number_density.reshape(som_dim, som_dim)
         frac_occupied = (Nmap>0).sum() / (frac>0).sum()
         print('Fraction of occupied pixels: '+str(frac_occupied))
         return area_map
@@ -325,7 +381,7 @@ class som2stats:
         # this line gives the unique healpix pixel indices that contains at least one galaxy, as well as the number of galaxies in each pixel 
         source_hp_ind_unique = self.source_hp_ind_unique
         A_pix = hp.nside2pixarea(Ns, degrees=True)*3600# the area of a Healpix pixel
-        number_contrast = np.zeros(som_dim**2)
+        number_density = np.zeros(som_dim**2)
         for cluster_ind in range(self.n_cluster):
             source_clusteri_ind = np.where(self.source_cluster_ind==cluster_ind)[0]
             # pick out the catalog indices of sources that are in the cluster_ind'th hierarchical cluster
