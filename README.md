@@ -4,13 +4,15 @@
 
 This is a python package to calculate the ''organized random'' for galaxy clustering measurement based on the idea from [Johnston et al., 2021](https://arxiv.org/abs/2012.08467) and [Yan et al., 2024](https://arxiv.org/abs/2410.23141).
 
+
 To measure the two-point function of galaxy distribution, one needs to calculate so-called random-random and data-random pair counts (see https://ui.adsabs.harvard.edu/abs/1993ApJ...412...64L/abstract). However, if the galaxy sample has variable depth due to anisotropic selection effects by various systematics (Galactic extinction, seeing, etc), a uniform random will result in biased estimation of the 2PCF. Therefore, one needs to recover the ''organized random (OR)' to eliminate the selection effect of a synthesis of systematics. In practice, selection functions of systematics could be complicated thus cannot be fit with simple formula. In addition, different systematics might be correlated, which makes the problem more complicated.
 
-The method proposed by [Johnston, et al](https://arxiv.org/abs/2012.08467) applies a combination of self-organizing map (SOM) and hierarchical clustering (HC) to identify the clustering of galaxies on high-dimensional systematics space, and then resample them back to the survey footprint to recover the organized random. This method has been tested on mock galaxy catalogs and the KiDS-1000 bright sample and the KiDS-Legacy sample.
+
+The method applies a combination of self-organizing map (SOM) and hierarchical clustering (HC) to identify the clustering of galaxies on high-dimensional systematics space, and then resample them back to the survey footprint to recover the organized random. This method has been tested on mock galaxy catalogs and the KiDS-1000 bright sample and the KiDS-Legacy sample.
 
 ## Basic idea
 
-The whole idea can be summarized as following:
+The whole idea can be summarized as follows:
 
 1. Train a SOM with systematics vectors of the galaxy sample;
 2. Group the SOM weight with HC. Each group represents a subsample of galaxies that shares similar systematis and therefore selections;
@@ -27,7 +29,7 @@ For galaxy 2PCF, the OR is used as the ``random catalog'' for a Landey-Salay est
 All the source codes are stored in `./code/src`, including:
 
 - OR_weights.py: the file that contains the class to recover organized random weight;
-- treecorr_utils.py: contains a function to call treecorr to calculate 2PCF;
+- treecorr_utils.py: contains a function to call `treecorr` to calculate 2PCF;
 - plot_som.py: contains a function to make fancy SOM plots;
 - glass_mock.py: generates mock catalogs with GLASS;
 - generate_mocksys.py: assigns simple mock systematics and depletion functions to a galaxy sample.
@@ -44,4 +46,6 @@ Optional (for the example notebook): [`glass`](https://glass.readthedocs.io/en/s
 
 ## What is a "tiaogeng🥄"?
 
+
 Tiaogeng (调羹) is the Chinese word for “spoon”, more commonly used in southern China. It contains two characters: “tiao(调)”meaning to reconcile and “geng (羹)” referring to a Chinesestyle thick soup. The code reconciles the unevenly observed sky, just as a tiaogeng stirs soup to make it taste more balanced and delicious.
+
